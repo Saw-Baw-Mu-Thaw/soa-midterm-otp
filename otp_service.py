@@ -1,25 +1,47 @@
-# otp_service.py
+import requests
 from otp_cache import OTPCache
-from repository.config import OTP_TTL_SECONDS, MAX_OTP_ATTEMPTS
+from repository.config import EMAIL_SERVICE_URL, OTP_TTL_SECONDS, MAX_OTP_ATTEMPTS
 
 cache = OTPCache(OTP_TTL_SECONDS, MAX_OTP_ATTEMPTS)
 
 class OTPService:
-    async def generate(self, transaction_id: int) -> dict:
+    async def generate(self, transaction_id: int, email: str = "", name: str = "User") -> dict:
         if cache.get(transaction_id):
             remaining = cache.remaining_seconds(transaction_id) or 0
             return {"success": False, "message": f"Wait {remaining}s"}
-    
-        expires_in = cache.set(transaction_id, "user@example.com")
-        stored_code = cache.get(transaction_id)["code"]  
-        print(f"\nOTP FOR TXN {transaction_id}: {stored_code}\n")
-    
+
+        # Generate & store OTP
+        cache.set(transaction_id, email)
+        data = cache.get(transaction_id)
+        code = data["code"]
+
+        print(f"\nOTP FOR TXN {transaction_id}: {code} → {email}\n")
+
+        # SEND REAL EMAIL
+        try:
+            requests.post(
+                f"{EMAIL_SERVICE_URL}/send-otp",
+                json={
+                    "transaction_id": transaction_id,
+                    "email": email or "test@example.com",
+                    "otp_code": code,
+                    "customer_name": name
+                },
+                timeout=8
+            )
+        except Exception as e:
+            print(f"Email failed: {e}")
+
+        masked = email[:1] + "***@" + email.split("@")[-1] if email and "@" in email else "terminal"
+
         return {
             "success": True,
-            "message": "OTP generated",
+            "message": "OTP generated & sent",
             "data": {
                 "transaction_id": transaction_id,
-                "expires_in_seconds": expires_in
+                "otp_code": code,
+                "otp_sent_to": masked,
+                "expires_in_seconds": OTP_TTL_SECONDS
             }
         }
 

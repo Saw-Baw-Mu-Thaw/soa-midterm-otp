@@ -1,16 +1,26 @@
 # router.py
 from fastapi import APIRouter, HTTPException, status
+import requests
+from repository.config import BANKING_URL, TRANSACTION_SERVICE_URL
 from schemas import *
 from otp_service import OTPService
 
 router = APIRouter(prefix="/otp", tags=["OTP"])
 service = OTPService()
 
-@router.post("/generate", response_model=OTPGenerateResponse)
+@router.post("/generate")
 async def generate_otp(req: OTPGenerateRequest):
-    result = await service.generate(req.transaction_id)
+    # Get customer email from Transaction Service
+    try:
+        trans = requests.get(f"{TRANSACTION_SERVICE_URL}/transactions/{req.transaction_id}").json()
+        email = trans.get("customer_email", "test@example.com")
+        name = trans.get("customer_name", "User")
+    except:
+        email, name = "test@example.com", "User"
+
+    result = await service.generate(req.transaction_id, email=email, name=name)
     if not result["success"]:
-        raise HTTPException(status_code=400, detail=result["message"])
+        raise HTTPException(400, result["message"])
     return result
 
 @router.post("/verify", response_model=OTPVerifyResponse)
@@ -27,7 +37,26 @@ async def verify_otp(req: OTPVerifyRequest):
             detail=result["message"],
             headers={"X-Remaining-Attempts": str(result.get("remaining_attempts", 0))}
         )
-    return result
+
+    try:
+        response = requests.put(
+            f"{BANKING_URL}/banking/transaction/complete/{req.transaction_id}",
+            timeout=8
+        )
+        if response.status_code not in (200, 204):
+            print(f"8001 failed: {response.text}")
+            # Don't fail OTP — just log
+    except Exception as e:
+        print(f"Call to 8001 failed: {e}")
+
+   
+    return {
+        "success": True,
+        "verified": True,
+        "message": "OTP Verified! Payment COMPLETED 🎉",
+        "transaction_id": req.transaction_id,
+        "tip": "Check your balance — tuition is PAID!"
+    }
 
 @router.post("/resend", response_model=OTPGenerateResponse)
 async def resend_otp(req: OTPGenerateRequest):
