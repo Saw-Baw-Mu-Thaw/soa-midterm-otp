@@ -43,7 +43,7 @@ class OTPCache:
     def generate_code(self) -> str:
         return "".join(random.choices("0123456789", k=6))
 
-    def set(self, transaction_id: int, email: str = "") -> int:
+    def set(self, transaction_id: int) -> int:
   
      code = self.generate_code()  
      expires_at = datetime.now() + timedelta(seconds=self.ttl)
@@ -51,7 +51,6 @@ class OTPCache:
      with self.lock:
          self.cache[transaction_id] = {
              "code": code,           
-             "email": email,
              "attempts": 0,
              "verified": False,
              "expires_at": expires_at,

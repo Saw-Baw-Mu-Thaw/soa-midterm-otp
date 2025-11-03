@@ -1,8 +1,8 @@
 #main.py
-from fastapi import BackgroundTasks, FastAPI, HTTPException, status
-from pydantic import BaseModel
+from fastapi import FastAPI
 import uvicorn
-import router.otp_routers as otp_routers
+from router import otp_routers
+
 app = FastAPI()
 
 #Router for OTP Service

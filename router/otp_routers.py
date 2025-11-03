@@ -11,14 +11,8 @@ service = OTPService()
 @router.post("/generate")
 async def generate_otp(req: OTPGenerateRequest):
     # Get customer email from Transaction Service
-    try:
-        trans = requests.get(f"{TRANSACTION_SERVICE_URL}/transactions/{req.transaction_id}").json()
-        email = trans.get("customer_email", "test@example.com")
-        name = trans.get("customer_name", "User")
-    except:
-        email, name = "test@example.com", "User"
 
-    result = await service.generate(req.transaction_id, email=email, name=name)
+    result = await service.generate(req.transaction_id)
     if not result["success"]:
         raise HTTPException(400, result["message"])
     return result
@@ -37,17 +31,6 @@ async def verify_otp(req: OTPVerifyRequest):
             detail=result["message"],
             headers={"X-Remaining-Attempts": str(result.get("remaining_attempts", 0))}
         )
-
-    try:
-        response = requests.put(
-            f"{BANKING_URL}/banking/transaction/complete/{req.transaction_id}",
-            timeout=8
-        )
-        if response.status_code not in (200, 204):
-            print(f"8001 failed: {response.text}")
-            # Don't fail OTP — just log
-    except Exception as e:
-        print(f"Call to 8001 failed: {e}")
 
    
     return {
