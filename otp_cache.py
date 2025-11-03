@@ -65,6 +65,12 @@ class OTPCache:
                 return None
             return data.copy()
 
+    def save_attempts(self, transaction_id : int, attempts: int):
+        with self.lock:
+            data = self.cache.get(transaction_id)
+            data['attempts'] = attempts
+            self.cache.update({transaction_id : data})
+
     def verify(self, transaction_id: int, code: str) -> dict:
         data = self.get(transaction_id)
         if not data:
@@ -78,6 +84,7 @@ class OTPCache:
             return {"success": False, "message": "Max attempts exceeded"}
 
         data["attempts"] += 1
+        self.save_attempts(transaction_id, data["attempts"])
 
         if data["code"] == code:
             data["verified"] = True
